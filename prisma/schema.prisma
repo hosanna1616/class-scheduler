@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  role          String    @default("TEACHER") // ADMIN, TEACHER, or STUDENT
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  teacher       Teacher?
+  student       Student?
+  notifications Notification[]
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Teacher {
+  id          String   @id @default(cuid())
+  name        String
+  userId      String?  @unique
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability String? // JSON string: { "MON": [1,2,3,4,5,6,7,8], "TUE": [1,2,3,4,5,6,7,8], ... }
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  classSubjects ClassSubject[]
+  schedules   Schedule[]
+}
+
+model Classroom {
+  id        String     @id @default(cuid())
+  name      String
+  capacity  Int
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  schedules Schedule[]
+}
+
+model Grade {
+  id           String        @id @default(cuid())
+  name         String        // e.g., "Grade 10A" or "Software Engineering"
+  studentCount Int           @default(0) // Number of students in this grade/department
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  classSubjects ClassSubject[]
+  schedules    Schedule[]
+  students     Student[]
+}
+
+model Subject {
+  id           String        @id @default(cuid())
+  name         String
+  hoursPerWeek Int
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  classSubjects ClassSubject[]
+  schedules    Schedule[]
+}
+
+model ClassSubject {
+  id        String   @id @default(cuid())
+  gradeId   String
+  subjectId String
+  teacherId String
+  grade     Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([gradeId, subjectId])
+}
+
+model Period {
+  id        String   @id @default(cuid())
+  day       String   // MON, TUE, WED, THU, FRI
+  slot      Int      // 1-8
+  startTime String   // "08:00"
+  endTime   String   // "08:45"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, slot])
+}
+
+model Schedule {
+  id          String   @id @default(cuid())
+  gradeId     String
+  classroomId String
+  teacherId   String
+  subjectId   String
+  day         String   // MON, TUE, WED, THU, FRI
+  slot        Int      // 1-8
+  status      String   @default("ACTIVE") // ACTIVE or CANCELED
+  canceledAt  DateTime?
+  canceledBy  String?  // Teacher ID who canceled
+  grade       Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  classroom   Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  subject     Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([gradeId, day, slot])
+  @@unique([classroomId, day, slot])
+  @@unique([teacherId, day, slot])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  type      String   // INFO, SUCCESS, WARNING, ERROR
+  read      Boolean  @default(false)
+  link      String?  // Optional link to related page
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, read])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  userEmail String?
+  action    String   // CREATE, UPDATE, DELETE, VIEW, etc.
+  entity    String   // Teacher, Schedule, Grade, etc.
+  entityId  String?
+  details   String?  // JSON string with change details
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model Student {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  gradeId   String
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grade     Grade    @relation(fields: [gradeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+

@@ -1,0 +1,64 @@
+import { NextResponse } from "next/server"
+import { auth } from "@/auth"
+import { prisma } from "@/lib/prisma"
+import { z } from "zod"
+
+const assignmentSchema = z.object({
+  gradeId: z.string(),
+  subjectId: z.string(),
+  teacherId: z.string(),
+})
+
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await auth()
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const data = assignmentSchema.parse(body)
+
+    const assignment = await prisma.classSubject.update({
+      where: { id: params.id },
+      data,
+      include: {
+        grade: true,
+        subject: true,
+        teacher: true,
+      },
+    })
+
+    return NextResponse.json(assignment)
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: error.errors }, { status: 400 })
+    }
+    return NextResponse.json({ error: "Failed to update assignment" }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await auth()
+    if (!session || session.user?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    await prisma.classSubject.delete({
+      where: { id: params.id },
+    })
+
+    return NextResponse.json({ success: true })
+  } catch (error) {
+    return NextResponse.json({ error: "Failed to delete assignment" }, { status: 500 })
+  }
+}
+
+
